@@ -342,9 +342,9 @@
             <p
               class="mt-3 text-[clamp(22px,3vw,34px)] font-medium leading-tight text-white"
             >
-              นักระบบงานคอมพิวเตอร์ ระดับ 6
+              นรค.6 · ผสซ.กดส.ฝสบ.(น.1)
               <br />
-              ผสซ.กดส.ฝสบ.(น.1)
+              พัฒนาระบบงานเพื่อสนับสนุนการปฏิบัติงานใน กฟภ.น.1
             </p>
           </div>
           <div class="py-[clamp(20px,3vw,30px)]" data-reveal>
@@ -368,20 +368,43 @@
     <!-- FETCH & TECH STACK -->
     <section id="fetch-tech-stack" class="relative py-[clamp(90px,12vw,160px)]">
       <div class="wrap">
-        <!-- Live data demo — fetched at runtime from https://swapi.info -->
+        <!-- Live data demo — fetched at runtime, paginated client-side by slice -->
         <div class="mt-[clamp(40px,6vw,72px)]" data-reveal>
           <div class="flex items-center justify-between gap-4">
-            <span class="eyebrow">Live API · swapi.info</span>
+            <span class="eyebrow">Live API · starwars-api</span>
             <span
-              id="swapiStatus"
+              id="swStatus"
               class="text-[11px] tracking-[.16em] uppercase text-muted"
               >loading…</span
             >
           </div>
           <ul
-            id="swapiFilms"
+            id="swGrid"
             class="mt-5 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3"
           ></ul>
+          <div
+            id="swPager"
+            class="mt-6 hidden items-center justify-between gap-4"
+          >
+            <button
+              id="swPrev"
+              type="button"
+              class="btn-pill disabled:opacity-40 disabled:pointer-events-none"
+            >
+              ← Prev
+            </button>
+            <span
+              id="swPage"
+              class="text-[11px] tracking-[.16em] uppercase text-muted"
+            ></span>
+            <button
+              id="swNext"
+              type="button"
+              class="btn-pill disabled:opacity-40 disabled:pointer-events-none"
+            >
+              Next →
+            </button>
+          </div>
         </div>
 
         <span class="eyebrow block mt-[clamp(40px,6vw,70px)]">Tech Stack</span>
@@ -650,34 +673,86 @@
         });
       });
 
-      /* ---- Live data: fetch Star Wars films from swapi.info ---- */
-      (async function loadSwapiFilms() {
-        const list = document.getElementById("swapiFilms");
-        const status = document.getElementById("swapiStatus");
-        if (!list) return;
-        const cell =
-          "rounded-xl border border-hair bg-elevated p-4 transition-colors hover:border-ink";
-        try {
-          const res = await fetch("https://swapi.info/api/films");
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          const films = (await res.json()).sort(
-            (a, b) => a.episode_id - b.episode_id,
+      /* ---- Live data: Star Wars characters, paginated client-side by slice ---- */
+      (async function loadStarwars() {
+        const grid = document.getElementById("swGrid");
+        const status = document.getElementById("swStatus");
+        const pager = document.getElementById("swPager");
+        const pageEl = document.getElementById("swPage");
+        const prevBtn = document.getElementById("swPrev");
+        const nextBtn = document.getElementById("swNext");
+        if (!grid) return;
+
+        const PER_PAGE = 6;
+        const esc = (s) =>
+          String(s ?? "").replace(
+            /[&<>"]/g,
+            (c) =>
+              ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
           );
-          list.innerHTML = films
-            .map(
-              (f) => `
-              <li class="${cell}">
-                <span class="text-[11px] tracking-[.14em] uppercase text-muted">Episode ${f.episode_id}</span>
-                <p class="mt-1 font-medium leading-tight">${f.title}</p>
-                <p class="mt-1 text-[13px] text-muted">${String(f.release_date).slice(0, 4)}</p>
-              </li>`,
-            )
-            .join("");
-          if (status) status.textContent = films.length + " films";
+        const card = (p) => `
+          <li class="group rounded-xl border border-hair bg-elevated overflow-hidden transition-colors hover:border-ink">
+            <div class="aspect-[4/5] bg-stage overflow-hidden">
+              <img src="${esc(p.image)}" alt="${esc(p.name)}" loading="lazy"
+                   class="w-full h-full object-cover object-top transition-transform duration-500 ease-out group-hover:scale-105"
+                   onerror="this.closest('div').classList.add('grid','place-items-center');this.replaceWith(Object.assign(document.createElement('span'),{className:'display text-[2rem] text-muted',textContent:(this.alt[0]||'?')}))" />
+            </div>
+            <div class="p-3">
+              <p class="font-medium leading-tight text-[14px]">${esc(p.name)}</p>
+              <p class="mt-0.5 text-[12px] text-muted capitalize">${esc(p.species || p.gender || "unknown")}</p>
+            </div>
+          </li>`;
+
+        let data = [],
+          page = 0;
+        function render() {
+          const pages = Math.max(1, Math.ceil(data.length / PER_PAGE));
+          if (page > pages - 1) page = pages - 1;
+          const start = page * PER_PAGE;
+          const slice = data.slice(start, start + PER_PAGE); // pagination by slice
+          grid.innerHTML = slice.map(card).join("");
+          pageEl.textContent = `Page ${page + 1} / ${pages}`;
+          prevBtn.disabled = page === 0;
+          nextBtn.disabled = page >= pages - 1;
+          // stagger the cards in on load / page change
+          if (!reduce && window.gsap) {
+            gsap.from(grid.children, {
+              autoAlpha: 0,
+              y: 24,
+              duration: 0.5,
+              ease: "power2.out",
+              stagger: 0.06,
+              overwrite: true,
+            });
+          }
           if (window.ScrollTrigger) ScrollTrigger.refresh();
+        }
+        prevBtn.addEventListener("click", () => {
+          if (page > 0) {
+            page--;
+            render();
+          }
+        });
+        nextBtn.addEventListener("click", () => {
+          if (page < Math.ceil(data.length / PER_PAGE) - 1) {
+            page++;
+            render();
+          }
+        });
+
+        try {
+          const res = await fetch(
+            "https://akabab.github.io/starwars-api/api/all.json",
+          );
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          data = await res.json();
+          status.textContent = data.length + " characters";
+          pager.classList.remove("hidden");
+          pager.classList.add("flex");
+          render();
         } catch (err) {
-          if (status) status.textContent = "offline";
-          list.innerHTML = `<li class="${cell} col-span-full text-[14px] text-muted">Couldn’t load live data from swapi.info — ${err.message}.</li>`;
+          status.textContent = "offline";
+          grid.innerHTML = `<li class="rounded-xl border border-hair bg-elevated p-4 col-span-full text-[14px] text-muted">Couldn’t load live data — ${esc(err.message)}.</li>`;
         }
       })();
 
