@@ -593,6 +593,9 @@
             scrub: true,
           },
         });
+        // Own the horizontal centering as a width-independent percentage so it
+        // survives the (remote) image loading after GSAP caches the transform.
+        gsap.set(".portrait", { xPercent: -50, x: 0 });
         gsap.to(".portrait", {
           yPercent: 8,
           ease: "none",
